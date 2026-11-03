@@ -7,3 +7,4 @@ local_data/
 build/
 demo/registry.live.json
 demo/readings.live.json
+_private/

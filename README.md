@@ -17,13 +17,24 @@ fictional client and synthetic drivers, cabs and documents only.
 | 3 | Phone to driver to cab. Unknown number: "not registered", nothing stored. No consent yet: consent request, nothing stored | `registry.py`, `intake.py` |
 | 4 | Original to S3 with SSE-KMS: `fleet/{vehicle}/{yyyy-mm}/{sha256}.{ext}`; medical certificates under `restricted/medical/...` | `store.py` |
 | 5 | Job to SQS, carrying a hashed sender id, never a phone number | `jobs.py` |
-| 6 | Worker reads the document: vision call with JSON-schema structured output | `model.py`, `schema.py` |
-| 7 | Rule checks in code, not AI | `rules.py` |
+| 6 | For a photo: SAM 3.1 finds the paper; code crops, straightens and trims the page (scans skip this) | `photo.py` |
+| 7 | Worker reads the page: Muse Spark vision call with JSON-schema structured output | `model.py`, `schema.py` |
+| 7a | Rule checks in code, not AI | `rules.py` |
 | 8 | Cab record, document log and open safety actions in DynamoDB | `records.py` |
 | 9 | Reply in English, Hindi or Telugu, paced per driver, with the driver's own module link when a document is accepted | `replies.py`, `training.py` |
 | 10 | The client dashboard reads the same records live: no rebuild, no export | `state.py`, `dashboard.py`, `dashboard/site/` |
 
 All outbound HTTP (WhatsApp media, replies and the model) goes through `bridge.py` only.
+
+## Photo step (`photo.py`)
+
+A driver's photo of a bill is rarely flat or framed. For images with dark surroundings (a car seat, a counter),
+SAM 3.1 is asked for the "paper document" through the Responses API; it answers with a box (in its token the `w`
+and `h` are the image size, not the box). Code crops to the box, measures the text-line skew on the centre of the
+crop, rotates against a dark fill and trims to the bright page. Scans whose paper already fills the frame skip the
+call. A SAM failure is logged and the original photo is read. SAM finds; it never decides. On
+`demo/synthetic/photo_TS09XY4521_tilted_demo.jpg` SAM returns the paper at 38% of the frame in about five seconds
+and the page is straightened by its 7.5 degree tilt. `PHOTO_MODE=off` disables the step.
 
 ## Dashboard (`dashboard.py`, `state.py`, `dashboard/site/`)
 
@@ -107,6 +118,7 @@ Set these as environment variables. In AWS they are loaded from the Secrets Mana
 |---|---|
 | `MODEL_MODE` | `muse` (Meta Model API) or `standin` (prepared readings, offline) |
 | `META_API_BASE_URL`, `META_API_KEY`, `MUSE_MODEL_ID` | Meta Model API, from the Meta developer console |
+| `PHOTO_MODE`, `SAM_MODEL_ID` | `sam` runs the photo step with SAM 3.1 (default `sam-3.1`); `off` skips it |
 | `WA_APP_SECRET`, `WA_VERIFY_TOKEN` | webhook signature and handshake |
 | `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `GRAPH_API_VERSION` | WhatsApp Cloud API (permanent system-user token) |
 | `S3_BUCKET`, `KMS_KEY_ID`, `SQS_QUEUE_URL`, `DDB_TABLE` | AWS, region fixed to ap-south-1 |
@@ -131,7 +143,7 @@ Set these as environment variables. In AWS they are loaded from the Secrets Mana
 
 ## Run
 
-    python -m pytest -q                       # 56 tests, no network or AWS needed
+    python -m pytest -q                       # 62 tests, no network or AWS needed
     set LOCAL_DATA_DIR=local_data
     uvicorn pipeline.app:app --port 8100      # webhook on http://localhost:8100/wa/inbound
     python demo/rehearse.py                   # the whole flow offline, into local_data/rehearsal
@@ -156,6 +168,13 @@ Set these as environment variables. In AWS they are loaded from the Secrets Mana
   `DASHBOARD_KEY`. The account owner pastes the real values in the AWS console. Redeploy afterwards so running
   functions pick them up.
 - Tear down after the hackathon: delete the stack, then empty and delete the two buckets and the secret.
+
+## Status (3 Nov 2026, day 9)
+
+- **Photo step live:** SAM 3.1 finds the paper in a driver's photo, code straightens it, Muse reads the clean page.
+  Probed live on the synthetic car-seat photo: SAM 5.9 s, paper at 38% of the frame, straightened by 7.5 degrees,
+  Muse 12.5 s at 0.98 confidence. Scans skip the call.
+- Submission pack written (`SUBMISSION.md`); repository prepared.
 
 ## Status (2 Nov 2026, day 8)
 
