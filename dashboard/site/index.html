@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Fleet Compliance · Live demo</title>
+<meta name="description" content="Live fleet compliance dashboard: service bills and vehicle papers sent on WhatsApp, read and checked within seconds. Fictional client, synthetic documents.">
+<meta name="theme-color" content="#7a1f2b">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css?v=20261102a">
+</head>
+<body>
+<div id="lock" class="lock">
+  <div class="lock-card">
+    <div class="brand-row"><img class="logo" src="cdai-logo.png" alt="Compliance Desk AI logo" width="132" height="132"><span class="brand-text">Compliance Desk AI</span></div>
+    <h1>Fleet Compliance Dashboard</h1>
+    <p class="sub">Live demo &middot; Verify and Train on WhatsApp</p>
+    <form id="unlock-form" autocomplete="off">
+      <label for="pw">Access code</label>
+      <input id="pw" type="password" autocomplete="off" required>
+      <button type="submit" id="unlock-btn">Open dashboard</button>
+      <p id="lock-err" class="err" role="alert"></p>
+    </form>
+    <p class="fine">A fictional client and synthetic drivers, cabs and documents. The page updates itself as documents arrive on WhatsApp.</p>
+  </div>
+</div>
+
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <div class="tb-left">
+      <img class="logo small" src="cdai-icon.png" alt="Compliance Desk AI" width="38" height="38">
+      <div>
+        <div class="tb-title">Fleet Compliance &middot; <span id="client"></span></div>
+        <div class="tb-sub live"><span id="live-dot" class="dot"></span><span id="live-text">Connecting</span></div>
+      </div>
+    </div>
+    <nav class="tb-nav">
+      <a href="#activity">Activity</a><a href="#cabs">All cabs</a><a href="#train">Train</a><a href="#how">How it works</a>
+      <button id="lock-btn" class="ghost">Lock</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h2>Every bill, read and checked within seconds of the driver sending it</h2>
+      <p>Drivers send photos or PDFs of service bills and vehicle papers on WhatsApp. Each file is stored encrypted in Mumbai, read by the model, checked against plain rules, and answered in the driver's own language. This page reads the same records live.</p>
+    </section>
+
+    <section class="kpis" id="kpis"></section>
+
+    <section class="panel" id="activity">
+      <div class="panel-head"><h3>Live activity</h3><span class="hint">Newest first &middot; time from the photo arriving to the reply going out</span></div>
+      <div id="activity-body"></div>
+    </section>
+
+    <section class="panel" id="cabs">
+      <div class="panel-head">
+        <h3>All cabs</h3>
+        <div class="filters">
+          <input id="q" type="search" placeholder="Search cab, vehicle or driver">
+          <select id="f">
+            <option value="all">All cabs</option>
+            <option value="ACTION">Action needed</option>
+            <option value="WATCH">Needs a look</option>
+            <option value="GOOD">Up to date</option>
+            <option value="NONE">Nothing yet</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="grid" id="cab-table">
+        <thead><tr><th>Cab</th><th>Vehicle</th><th>Driver</th><th>Language</th><th>Consent</th><th>Status</th><th>Last bill</th><th>Odometer</th><th>Safety actions</th><th>Documents</th><th>Module</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <p class="hint">Click any cab for its full record: every document, what the model read, and what the rules decided.</p>
+    </section>
+
+    <section class="panel" id="train">
+      <div class="panel-head"><h3>Train: driver modules</h3><span class="hint">D Advaya FM naipuNya phone modules, in the driver's language</span></div>
+      <div id="train-body"></div>
+    </section>
+
+    <section class="panel" id="how">
+      <div class="panel-head"><h3>How it works</h3><span class="hint">Verification lives in code, not in the model</span></div>
+      <ol class="steps">
+        <li><strong>Send.</strong> The driver sends a photo or PDF on WhatsApp. An unknown number gets "not registered"; a driver who has not consented gets the consent request, and nothing is stored.</li>
+        <li><strong>Store.</strong> The original goes to S3 in Mumbai with KMS encryption, under the cab and month. Medical certificates go to a restricted prefix and are never read by the model.</li>
+        <li><strong>Read.</strong> The worker sends the pages to the model with a strict JSON schema: document type, vehicle number, date, odometer, GSTIN, work done, advisories, a one-line summary, and how sure it is.</li>
+        <li><strong>Check.</strong> Plain rules decide: wrong vehicle, future date, no GSTIN, duplicate file or invoice, bank-name bill, partial proof, expired paper, odometer going backwards. Workshop advisories on tyres, brakes, clutch, steering, suspension or fuel open a safety action until a later bill shows the fix.</li>
+        <li><strong>Reply and train.</strong> The driver gets the result in English, Hindi or Telugu within seconds, with the exact problem when there is one, and a link to a short module in their language.</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Demo by Compliance Desk AI. Fictional client; synthetic drivers, cabs and documents. Documents are read through the Meta Model API for this demo; real fleets use a model hosted in India behind the same interface. Driver training by D Advaya FM naipuNya.</p>
+    <p>Last change in the records: <span id="foot-asof">-</span>.</p>
+  </footer>
+</div>
+
+<div id="drawer" class="drawer" hidden>
+  <div class="drawer-scrim" data-close></div>
+  <aside class="drawer-card" role="dialog" aria-modal="true" aria-labelledby="d-title">
+    <div class="drawer-head">
+      <div><h3 id="d-title"></h3><p id="d-sub" class="tb-sub"></p></div>
+      <div class="drawer-actions"><button class="ghost" data-close>Close</button></div>
+    </div>
+    <div id="d-body" class="drawer-body"></div>
+  </aside>
+</div>
+<script src="app.js?v=20261102a"></script>
+</body>
+</html>

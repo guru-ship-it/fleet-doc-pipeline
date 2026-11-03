@@ -1,0 +1,9 @@
+{
+ "client": "Example Tech Park, Hyderabad",
+ "note": "Synthetic demo registry: fictional client, drivers, phones and vehicles. The live demo registry, with the demo phones, is kept out of the repo.",
+ "drivers": [
+  {"phone": "+919000000001", "driver_name": "Ravi (demo)", "vehicle_no": "TS09XY4521", "cab_id": "CAB-01", "language": "en", "owner_names": ["Ravi"], "synthetic": true},
+  {"phone": "+919000000002", "driver_name": "Suresh (demo)", "vehicle_no": "TS09XY7730", "cab_id": "CAB-02", "language": "te", "owner_names": ["Suresh"], "synthetic": true},
+  {"phone": "+919000000004", "driver_name": "Imran (demo)", "vehicle_no": "TS09XZ1162", "cab_id": "CAB-03", "language": "hi", "owner_names": ["Imran"], "synthetic": true}
+ ]
+}

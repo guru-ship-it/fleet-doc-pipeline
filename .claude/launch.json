@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fleet-dashboard-local",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["dashboard/serve_local.py", "8098"],
+      "port": 8098
+    }
+  ]
+}

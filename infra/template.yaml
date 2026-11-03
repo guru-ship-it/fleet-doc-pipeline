@@ -1,0 +1,328 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Fleet document pipeline, hackathon demo. ap-south-1 (Mumbai) only. WhatsApp webhook -> S3 (SSE-KMS) -> SQS ->
+  worker -> DynamoDB -> read-only dashboard. Synthetic data only: real driver documents never go to a model hosted
+  outside India.
+
+Parameters:
+  SecretName:
+    Type: String
+    Default: fleet-doc-pipeline/demo
+    Description: >-
+      Secrets Manager secret with META_API_KEY, WA_ACCESS_TOKEN, WA_APP_SECRET, WA_PHONE_NUMBER_ID, WA_VERIFY_TOKEN
+      and DASHBOARD_KEY (the dashboard access code)
+  ModelMode:
+    Type: String
+    Default: muse
+    AllowedValues: [muse, standin]
+  ModelBaseUrl:
+    Type: String
+    Default: https://api.meta.ai/v1
+  ModelId:
+    Type: String
+    Default: muse-spark-1.3
+  RegistryFile:
+    Type: String
+    Default: demo/registry.example.json
+    Description: Driver registry inside the package. demo/registry.live.json holds test numbers and is never committed.
+
+Resources:
+  DocsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Fleet document pipeline demo - documents in S3
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdministers
+            Effect: Allow
+            Principal: {AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"}
+            Action: "kms:*"
+            Resource: "*"
+
+  DocsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/fleet-doc-pipeline-demo
+      TargetKeyId: !Ref DocsKey
+
+  DocsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: cdai-fleet-docs-demo-mumbai
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: "aws:kms", KMSMasterKeyID: !GetAtt DocsKey.Arn}
+            BucketKeyEnabled: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: demo-documents-expire-after-90-days
+            Status: Enabled
+            ExpirationInDays: 90
+
+  DocsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: HttpsOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource: [!GetAtt DocsBucket.Arn, !Sub "${DocsBucket.Arn}/*"]
+            Condition: {Bool: {"aws:SecureTransport": "false"}}
+
+  JobsDeadLetter:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: fleet-doc-jobs-demo-dlq
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  JobsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: fleet-doc-jobs-demo
+      VisibilityTimeout: 720          # six times the worker's timeout
+      SqsManagedSseEnabled: true
+      RedrivePolicy: {deadLetterTargetArn: !GetAtt JobsDeadLetter.Arn, maxReceiveCount: 3}
+
+  RecordsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fleet-doc-pipeline-demo
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - {AttributeName: pk, AttributeType: S}
+        - {AttributeName: sk, AttributeType: S}
+      KeySchema:
+        - {AttributeName: pk, KeyType: HASH}
+        - {AttributeName: sk, KeyType: RANGE}
+      SSESpecification: {SSEEnabled: true}
+      PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+
+  WebhookLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: /aws/lambda/fleet-doc-webhook-demo, RetentionInDays: 14}
+
+  WorkerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: /aws/lambda/fleet-doc-worker-demo, RetentionInDays: 14}
+
+  DashboardLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: /aws/lambda/fleet-doc-dashboard-demo, RetentionInDays: 14}
+
+  DashboardRole:                        # read-only: it can query the records and read the secret, nothing else
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: "sts:AssumeRole"}]
+      Policies:
+        - PolicyName: dashboard-read-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - {Effect: Allow, Action: [logs:CreateLogStream, logs:PutLogEvents], Resource: !GetAtt DashboardLogs.Arn}
+              - {Effect: Allow, Action: [dynamodb:Query, dynamodb:GetItem], Resource: !GetAtt RecordsTable.Arn}
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*"
+
+  WebhookRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: "sts:AssumeRole"}]
+      Policies:
+        - PolicyName: webhook-least-privilege
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - {Effect: Allow, Action: [logs:CreateLogStream, logs:PutLogEvents], Resource: !GetAtt WebhookLogs.Arn}
+              - {Effect: Allow, Action: s3:PutObject, Resource: !Sub "${DocsBucket.Arn}/*"}
+              - {Effect: Allow, Action: [kms:GenerateDataKey, kms:Decrypt], Resource: !GetAtt DocsKey.Arn}
+              - {Effect: Allow, Action: sqs:SendMessage, Resource: !GetAtt JobsQueue.Arn}
+              - {Effect: Allow, Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:DeleteItem], Resource: !GetAtt RecordsTable.Arn}
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*"
+
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: "sts:AssumeRole"}]
+      Policies:
+        - PolicyName: worker-least-privilege
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - {Effect: Allow, Action: [logs:CreateLogStream, logs:PutLogEvents], Resource: !GetAtt WorkerLogs.Arn}
+              - {Effect: Allow, Action: s3:GetObject, Resource: !Sub "${DocsBucket.Arn}/*"}
+              - {Effect: Allow, Action: kms:Decrypt, Resource: !GetAtt DocsKey.Arn}
+              - Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt JobsQueue.Arn
+              - {Effect: Allow, Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query], Resource: !GetAtt RecordsTable.Arn}
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*"
+
+  WebhookFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: WebhookLogs
+    Properties:
+      FunctionName: fleet-doc-webhook-demo
+      Description: WhatsApp webhook - signature check, consent, encrypted store, queue
+      Runtime: python3.12
+      Architectures: [x86_64]
+      Handler: pipeline.app.lambda_webhook
+      Code: ../build/lambda.zip
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt WebhookRole.Arn
+      Environment:
+        Variables:
+          SECRET_ID: !Ref SecretName
+          S3_BUCKET: !Ref DocsBucket
+          KMS_KEY_ID: !GetAtt DocsKey.Arn
+          SQS_QUEUE_URL: !Ref JobsQueue
+          DDB_TABLE: !Ref RecordsTable
+          MODEL_MODE: !Ref ModelMode
+          META_API_BASE_URL: !Ref ModelBaseUrl
+          MUSE_MODEL_ID: !Ref ModelId
+          GRAPH_API_VERSION: v21.0
+          REGISTRY_FILE: !Ref RegistryFile
+          READINGS_FILE: demo/readings.example.json
+          ACK_ON_RECEIPT: "true"
+
+  WorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: WorkerLogs
+    Properties:
+      FunctionName: fleet-doc-worker-demo
+      Description: Reads each queued document with the model, checks it with the rules, updates records, replies
+      Runtime: python3.12
+      Architectures: [x86_64]
+      Handler: pipeline.app.lambda_worker
+      Code: ../build/lambda.zip
+      MemorySize: 1024
+      Timeout: 120
+      Role: !GetAtt WorkerRole.Arn
+      Environment:
+        Variables:
+          SECRET_ID: !Ref SecretName
+          S3_BUCKET: !Ref DocsBucket
+          KMS_KEY_ID: !GetAtt DocsKey.Arn
+          SQS_QUEUE_URL: !Ref JobsQueue
+          DDB_TABLE: !Ref RecordsTable
+          MODEL_MODE: !Ref ModelMode
+          META_API_BASE_URL: !Ref ModelBaseUrl
+          MUSE_MODEL_ID: !Ref ModelId
+          GRAPH_API_VERSION: v21.0
+          REGISTRY_FILE: !Ref RegistryFile
+          READINGS_FILE: demo/readings.example.json
+          ACK_ON_RECEIPT: "true"
+
+  WorkerTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt JobsQueue.Arn
+      FunctionName: !Ref WorkerFunction
+      BatchSize: 1
+      FunctionResponseTypes: [ReportBatchItemFailures]
+
+  DashboardFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: DashboardLogs
+    Properties:
+      FunctionName: fleet-doc-dashboard-demo
+      Description: Client dashboard - serves the page and answers /api/state from the live records, read-only
+      Runtime: python3.12
+      Architectures: [x86_64]
+      Handler: pipeline.dashboard.lambda_dashboard
+      Code: ../build/lambda.zip
+      MemorySize: 512
+      Timeout: 15
+      Role: !GetAtt DashboardRole.Arn
+      Environment:
+        Variables:
+          SECRET_ID: !Ref SecretName
+          DDB_TABLE: !Ref RecordsTable
+          REGISTRY_FILE: !Ref RegistryFile
+
+  DashboardUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt DashboardFunction.Arn
+      AuthType: NONE                  # the page is public; /api/state checks the access code in code
+
+  DashboardUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DashboardFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  DashboardUrlInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DashboardFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  WebhookUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt WebhookFunction.Arn
+      AuthType: NONE                  # Meta calls it; every POST is checked against the app secret in code
+
+  WebhookUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebhookFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: "*"
+      FunctionUrlAuthType: NONE
+
+  WebhookUrlInvokePermission:         # required for function URLs created since October 2025
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebhookFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true     # only through the URL, never a direct invoke
+
+Outputs:
+  WebhookCallbackUrl:
+    Description: Paste into the Meta developer console as the WhatsApp webhook callback URL
+    Value: !Sub "${WebhookUrl.FunctionUrl}wa/inbound"
+  DashboardUrl:
+    Description: The client dashboard (opens with the DASHBOARD_KEY access code from the secret)
+    Value: !GetAtt DashboardUrl.FunctionUrl
+  DocsBucket:
+    Value: !Ref DocsBucket
+  JobsQueueUrl:
+    Value: !Ref JobsQueue
+  DeadLetterQueueUrl:
+    Value: !Ref JobsDeadLetter
+  RecordsTable:
+    Value: !Ref RecordsTable
+  SecretName:
+    Value: !Ref SecretName
