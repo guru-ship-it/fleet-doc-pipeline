@@ -175,6 +175,11 @@ Set these as environment variables. In AWS they are loaded from the Secrets Mana
   Probed live on the synthetic car-seat photo: SAM 5.9 s, paper at 38% of the frame, straightened by 7.5 degrees,
   Muse 12.5 s at 0.98 confidence. Scans skip the call.
 - Submission pack written (`SUBMISSION.md`); repository prepared.
+- **Live run, 3 Nov 23:00 IST, from a phone on WhatsApp:** the tilted car-seat photo was found by SAM 3.1 at 38% of
+  the frame and straightened by 7.5 degrees in 5.0 s, read by Muse in 12.5 s at 0.99, accepted with the tyre advisory,
+  and answered with the Vehicle care link, 22 s from photo to reply; the wrong-vehicle bill was rejected
+  (VEHICLE_MISMATCH) in 12 s and the future-dated memo (FUTURE_DATE, NO_GSTIN) in 11 s, both with the SAM call skipped
+  because the paper fills the frame. Every reply delivered and read; the dashboard updated live.
 
 ## Status (2 Nov 2026, day 8)
 
