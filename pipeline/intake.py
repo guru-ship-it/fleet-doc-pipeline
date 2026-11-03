@@ -25,6 +25,7 @@ class Deps:
     store: object
     queue: object
     model: object = None
+    photo: object = None            # optional: finds and straightens the paper in a photo before the model reads
     fetch_media: Callable = None    # media_id -> (bytes, mime)
     send: Callable = None           # (to_e164, body) -> message id
     now: Callable = None            # -> timezone-aware datetime

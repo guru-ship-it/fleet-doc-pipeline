@@ -87,7 +87,8 @@
       <ol class="steps">
         <li><strong>Send.</strong> The driver sends a photo or PDF on WhatsApp. An unknown number gets "not registered"; a driver who has not consented gets the consent request, and nothing is stored.</li>
         <li><strong>Store.</strong> The original goes to S3 in Mumbai with KMS encryption, under the cab and month. Medical certificates go to a restricted prefix and are never read by the model.</li>
-        <li><strong>Read.</strong> The worker sends the pages to the model with a strict JSON schema: document type, vehicle number, date, odometer, GSTIN, work done, advisories, a one-line summary, and how sure it is.</li>
+        <li><strong>Find.</strong> For a photo, SAM 3.1 finds the paper in the frame; code crops to it and straightens the text lines. The segmentation model only finds; if it fails, the original photo is read and the failure is logged.</li>
+        <li><strong>Read.</strong> The worker sends the clean page to the model with a strict JSON schema: document type, vehicle number, date, odometer, GSTIN, work done, advisories, a one-line summary, and how sure it is.</li>
         <li><strong>Check.</strong> Plain rules decide: wrong vehicle, future date, no GSTIN, duplicate file or invoice, bank-name bill, partial proof, expired paper, odometer going backwards. Workshop advisories on tyres, brakes, clutch, steering, suspension or fuel open a safety action until a later bill shows the fix.</li>
         <li><strong>Reply and train.</strong> The driver gets the result in English, Hindi or Telugu within seconds, with the exact problem when there is one, and a link to a short module in their language.</li>
       </ol>

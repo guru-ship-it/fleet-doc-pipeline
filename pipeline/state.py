@@ -56,6 +56,7 @@ def document_view(rec: dict) -> dict:
             "work_done": list(doc.get("work_done") or []), "advisories": list(doc.get("advisories") or []),
             "summary": doc.get("summary"), "confidence": doc.get("confidence"), "flags": list(rec.get("flags") or []),
             "opened": list(rec.get("opened") or []), "closed": list(rec.get("closed") or []),
+            "photo": rec.get("photo"),
             # the module that went out, without the link: the link carries the driver's personal learner token
             "training": {k: v for k, v in rec["training"].items() if k != "url"} if rec.get("training") else None}
 

@@ -220,9 +220,15 @@
   function docCard(x) {
     var cls = x.outcome === "rejected" ? " rejected" : (x.outcome === "more_proof_needed" ? " partly" : "");
     var meta = [x.doc_date ? day(x.doc_date) : "", x.workshop, x.invoice_no ? "No. " + x.invoice_no : "", x.odometer_km != null ? kms(x.odometer_km) : "", x.amount != null ? inr(x.amount) : ""].filter(Boolean).map(esc).join(" · ");
-    var timing = [x.seconds != null ? "photo to reply " + x.seconds + " s" : "", x.read_ms != null ? "model read " + (x.read_ms / 1000).toFixed(1) + " s" : "", x.confidence != null ? "confidence " + Math.round(x.confidence * 100) + "%" : ""].filter(Boolean).join(" · ");
+    var timing = [x.seconds != null ? "photo to reply " + x.seconds + " s" : "", x.read_ms != null ? "find and read " + (x.read_ms / 1000).toFixed(1) + " s" : "", x.confidence != null ? "confidence " + Math.round(x.confidence * 100) + "%" : ""].filter(Boolean).join(" · ");
+    var ph = x.photo, photoLine = "";
+    if (ph && ph.error) photoLine = "Photo step failed, the original photo was read.";
+    else if (ph && ph.called === false) photoLine = "Paper fills the frame; read as sent.";
+    else if (ph && (ph.cropped || Math.abs(ph.angle_deg || 0) >= 0.6)) photoLine = "Paper found by SAM 3.1" + (ph.cover != null ? " (" + Math.round(ph.cover * 100) + "% of the frame)" : "") + (ph.cropped ? ", cropped" : "") + (Math.abs(ph.angle_deg || 0) >= 0.6 ? ", straightened by " + Math.abs(ph.angle_deg).toFixed(1) + "°" : "") + " before reading.";
+    else if (ph) photoLine = "Photo checked by SAM 3.1: paper fills the frame, read as sent.";
     return '<div class="svc-card' + cls + '"><div class="svc-head"><div><strong>' + esc(when(x.received_at)) + "</strong> &middot; " + esc(x.label) + '<div class="hint">' + meta + "</div></div>" + outBadge(x) + "</div>" +
       (x.summary ? '<div class="svc-work">' + esc(x.summary) + "</div>" : "") +
+      (photoLine ? '<div class="svc-note">' + esc(photoLine) + "</div>" : "") +
       (x.work_done.length ? '<div class="svc-note"><strong>Work done:</strong> ' + esc(x.work_done.join("; ")) + "</div>" : "") +
       (x.advisories.length ? '<div class="svc-note"><strong>Workshop advised:</strong> ' + esc(x.advisories.join("; ")) + "</div>" : "") +
       (x.flags.length ? '<ul class="flags">' + x.flags.map(flagLine).join("") + "</ul>" : '<div class="svc-note">No rule raised a flag.</div>') +

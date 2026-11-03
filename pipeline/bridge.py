@@ -68,19 +68,28 @@ def graph_send_text(to_e164: str, body: str, token: str, phone_number_id: str, v
     return msg_id
 
 
-def model_chat(base_url: str, api_key: str, body: dict, timeout: float = 90) -> tuple:
-    """POST an OpenAI-compatible chat completion. Returns (response json, latency ms)."""
+def _model_post(path: str, base_url: str, api_key: str, body: dict, timeout: float) -> tuple:
     t0 = time.monotonic()
     try:
-        r = httpx.post(base_url.rstrip("/") + "/chat/completions", headers=_auth(api_key), json=body, timeout=timeout)
+        r = httpx.post(base_url.rstrip("/") + path, headers=_auth(api_key), json=body, timeout=timeout)
     except httpx.HTTPError as e:
-        logs.event("MODEL_CALL_FAILED", "error", error=type(e).__name__, ms=_ms(t0))
+        logs.event("MODEL_CALL_FAILED", "error", path=path, error=type(e).__name__, ms=_ms(t0))
         raise ModelCallError("Model request failed: %s" % type(e).__name__) from e
     if r.status_code != 200:
         try:
             reason = str((r.json().get("error") or {}).get("type") or "")[:60]
         except ValueError:
             reason = ""
-        logs.event("MODEL_CALL_FAILED", "error", status=r.status_code, reason=reason, ms=_ms(t0))
+        logs.event("MODEL_CALL_FAILED", "error", path=path, status=r.status_code, reason=reason, ms=_ms(t0))
         raise ModelCallError("Model returned HTTP %s" % r.status_code)
     return r.json(), _ms(t0)
+
+
+def model_chat(base_url: str, api_key: str, body: dict, timeout: float = 90) -> tuple:
+    """POST an OpenAI-compatible chat completion (Muse reads documents). Returns (response json, latency ms)."""
+    return _model_post("/chat/completions", base_url, api_key, body, timeout)
+
+
+def model_responses(base_url: str, api_key: str, body: dict, timeout: float = 60) -> tuple:
+    """POST to the Responses API (SAM 3.1 finds the paper in a photo). Returns (response json, latency ms)."""
+    return _model_post("/responses", base_url, api_key, body, timeout)

@@ -7,7 +7,7 @@ from dataclasses import asdict
 from . import logs
 from .errors import PipelineError, ResidencyError
 from .intake import reply
-from .model import to_pages
+from .model import IMAGE_TYPES, to_pages
 from .records import invoice_key
 from .rules import Context, evaluate, parse_date, pretty_vehicle
 from .training import ACCEPTED, choose_module, module_link, module_title
@@ -49,12 +49,16 @@ def process_job(job: dict, deps) -> dict:
         reply(deps, driver.phone, "already_received", driver.language, vehicle=pretty_vehicle(vehicle))
         return {"outcome": "already_received", "hash": job["hash"]}
 
-    if not deps.model.in_india and not driver.synthetic:
+    offshore = not deps.model.in_india or (deps.photo is not None and not deps.photo.in_india)
+    if offshore and not driver.synthetic:
         logs.event("RESIDENCY_BLOCK", "error", file=ref, cab=driver.cab_id)
         raise ResidencyError("A real document may not be sent to a model hosted outside India")
 
     t0 = time.monotonic()
-    doc = deps.model.extract(to_pages(deps.store.get(job["key"]), job["mime"]), job["hash"])
+    pages, photo = to_pages(deps.store.get(job["key"]), job["mime"]), None
+    if deps.photo is not None and job["mime"] in IMAGE_TYPES:   # a photo, not a PDF: find and straighten the paper
+        pages, photo = deps.photo.prepare(pages, job["hash"])
+    doc = deps.model.extract(pages, job["hash"])
     read_ms = round((time.monotonic() - t0) * 1000)
     prior = deps.records.seen_hash(job["hash"])
     inv_key = invoice_key(doc)
@@ -74,6 +78,8 @@ def process_job(job: dict, deps) -> dict:
                flags=[asdict(f) for f in decision.flags], opened=decision.open_actions, closed=decision.close_actions,
                doc_date=_iso(doc.get("doc_date")), valid_till=_iso(doc.get("validity_till")),
                decided_at=decided_at, read_ms=read_ms)
+    if photo:
+        rec["photo"] = photo
     params = dict(decision.reply_params)
     if decision.outcome in ACCEPTED and driver.training_token:   # the Train half rides on an accepting reply
         sent = {d["training"]["module"] for d in earlier if d.get("training")}

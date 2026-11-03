@@ -21,6 +21,11 @@ Parameters:
   ModelId:
     Type: String
     Default: muse-spark-1.3
+  PhotoMode:
+    Type: String
+    Default: sam
+    AllowedValues: [sam, off]
+    Description: sam = SAM 3.1 finds and code straightens the paper in a photo before Muse reads it
   RegistryFile:
     Type: String
     Default: demo/registry.example.json
@@ -233,6 +238,8 @@ Resources:
           MODEL_MODE: !Ref ModelMode
           META_API_BASE_URL: !Ref ModelBaseUrl
           MUSE_MODEL_ID: !Ref ModelId
+          PHOTO_MODE: !Ref PhotoMode
+          SAM_MODEL_ID: sam-3.1
           GRAPH_API_VERSION: v21.0
           REGISTRY_FILE: !Ref RegistryFile
           READINGS_FILE: demo/readings.example.json

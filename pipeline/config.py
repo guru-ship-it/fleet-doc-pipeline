@@ -21,6 +21,8 @@ class Settings:
     model_base_url: str = ""
     model_api_key: str = ""
     model_id: str = ""
+    photo_mode: str = "off"               # "sam": SAM 3.1 finds the paper in a photo before Muse reads it
+    photo_model_id: str = "sam-3.1"
     wa_app_secret: str = ""               # verifies X-Hub-Signature-256 on every webhook POST
     wa_verify_token: str = ""             # the GET handshake when the webhook URL is registered
     wa_access_token: str = ""             # Graph API token: media downloads and replies
@@ -40,6 +42,7 @@ class Settings:
         e = os.environ.get
         return cls(model_mode=e("MODEL_MODE", "standin"), model_base_url=e("META_API_BASE_URL", ""),
                    model_api_key=e("META_API_KEY", ""), model_id=e("MUSE_MODEL_ID", ""),
+                   photo_mode=e("PHOTO_MODE", "off"), photo_model_id=e("SAM_MODEL_ID", "sam-3.1"),
                    wa_app_secret=e("WA_APP_SECRET", ""), wa_verify_token=e("WA_VERIFY_TOKEN", ""),
                    wa_access_token=e("WA_ACCESS_TOKEN", ""), wa_phone_number_id=e("WA_PHONE_NUMBER_ID", ""),
                    graph_version=e("GRAPH_API_VERSION", "v21.0"), s3_bucket=e("S3_BUCKET", ""),

@@ -16,6 +16,7 @@ from .intake import Deps, handle_payload
 from .logs import hid
 from .jobs import LocalQueue, SqsQueue
 from .model import MuseModel, StandInModel
+from .photo import SamPhoto
 from .records import DynamoRecords, LocalRecords
 from .registry import Registry
 from .store import LocalStore, S3Store
@@ -39,7 +40,8 @@ def build_deps(settings: Settings | None = None) -> Deps:
     else:
         with open(os.environ.get("READINGS_FILE", "demo/readings.example.json"), encoding="utf-8") as f:
             model = StandInModel(json.load(f))
-    return Deps(settings=s, registry=registry, records=records, store=store, queue=queue, model=model,
+    photo = SamPhoto(s.model_base_url, s.model_api_key, s.photo_model_id) if s.photo_mode == "sam" else None
+    return Deps(settings=s, registry=registry, records=records, store=store, queue=queue, model=model, photo=photo,
                 fetch_media=functools.partial(bridge.graph_download_media, token=s.wa_access_token,
                                               version=s.graph_version),
                 send=functools.partial(bridge.graph_send_text, token=s.wa_access_token,
