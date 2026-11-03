@@ -142,6 +142,7 @@
       });
     });
     if (state.open && (changed.indexOf(state.open) >= 0 || !$("#drawer").hidden && changed.length)) openCab(state.open, true);
+    if (!state.open && /^#cab-/.test(location.hash)) openCab(location.hash.slice(5));   // deep link to one cab's record
   }
 
   // ---------------------------------------------------------------- render

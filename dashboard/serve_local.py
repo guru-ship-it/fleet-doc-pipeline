@@ -20,8 +20,21 @@ os.environ.setdefault("REGISTRY_FILE", "demo/registry.example.json")
 from pipeline.dashboard import handle  # noqa: E402  (after the path and environment are set)
 
 
+UNLOCK = ("<!doctype html><meta charset='utf-8'><script>var q=new URLSearchParams(location.search);"
+          "try{sessionStorage.setItem('fleet_demo_code',q.get('code')||'demo')}catch(e){}"
+          "location.replace('/'+(q.get('to')||''))</script>")
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path.startswith("/_local_unlock"):   # development only: lets a headless browser take screenshots
+            body = UNLOCK.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         r = handle("GET", self.path.split("?")[0], dict(self.headers))
         body = base64.b64decode(r["body"]) if r["isBase64Encoded"] else r["body"].encode("utf-8")
         self.send_response(r["statusCode"])
