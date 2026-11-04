@@ -56,7 +56,7 @@ This is a multimodal document agent with its verification layer in code, built t
 
 SAM finds and Muse reads; neither decides. On the synthetic car-seat photo in `demo/synthetic/`, SAM returns the
 paper at 38% of the frame in about five seconds, code straightens it by the 7.5 degree tilt, and Muse reads the
-clean page with 0.98 confidence.
+clean page with 0.99 confidence. In the recorded live run the whole photo-to-reply path took 22 seconds.
 
 ## How it is built
 
@@ -94,13 +94,13 @@ went out, never the link.
 
 - Dashboard: the link and its access code are in the submission form. The page is public; the state behind it
   needs the code.
-- Video: linked in the submission form. It shows the three synthetic bills sent from a phone, the replies, and the
-  dashboard updating live.
+- Video: linked in the submission form. It shows the three synthetic bills sent from a phone in a recorded live run,
+  the replies as they arrived, the module opening from the link, and the dashboard with the resulting records.
 - The webhook, worker and dashboard run live in ap-south-1 for the judging period.
 
 ## Status and what is next
 
-Built in nine days by one founder with AI-assisted coding. Live end to end on WhatsApp since 1 November. Next:
+Built in ten days by one founder with AI-assisted coding. Live end to end on WhatsApp since 1 November. Next:
 a Mumbai-hosted model for real fleets, erasure on request, and the remaining document types' rules (permit and
 fitness are read but have fewer checks than service bills).
 
