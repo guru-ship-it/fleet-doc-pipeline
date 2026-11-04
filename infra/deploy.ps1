@@ -11,7 +11,8 @@ param(
 )
 
 $Region = 'ap-south-1'
-$Account = '091825118607'
+$Account = $env:FLEET_AWS_ACCOUNT   # the account id this stack belongs in; set in the shell, not kept in the repository
+if (-not $Account) { throw "Set FLEET_AWS_ACCOUNT to the 12-digit AWS account id this stack belongs in" }
 $Stack = 'fleet-doc-pipeline-demo'
 $Artifacts = 'cdai-fleet-pipeline-artifacts-mumbai'
 $SecretName = 'fleet-doc-pipeline/demo'

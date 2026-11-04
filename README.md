@@ -151,6 +151,7 @@ Set these as environment variables. In AWS they are loaded from the Secrets Mana
 
 ## Deploy (AWS, ap-south-1 only)
 
+    $env:FLEET_AWS_ACCOUNT = '<12-digit account id>'                               # the account the stack belongs in
     powershell -NoProfile -File infra\deploy.ps1                                   # synthetic registry
     powershell -NoProfile -File infra\deploy.ps1 -RegistryFile demo/registry.live.json   # with test phones
 

@@ -3,7 +3,7 @@ from pipeline.inbound import parse, statuses
 
 
 def receipt(status, errors=None):
-    s = {"id": "wamid.ABC123", "status": status, "timestamp": "1761120000", "recipient_id": "917989002661"}
+    s = {"id": "wamid.ABC123", "status": status, "timestamp": "1761120000", "recipient_id": "919999000001"}
     if errors:
         s["errors"] = errors
     return {"object": "whatsapp_business_account",
@@ -13,7 +13,7 @@ def receipt(status, errors=None):
 def test_delivered_receipt_is_parsed_and_is_not_a_message():
     payload = receipt("delivered")
     st, = statuses(payload)
-    assert (st.status, st.recipient, st.message_id, st.error_code) == ("delivered", "+917989002661", "wamid.ABC123", None)
+    assert (st.status, st.recipient, st.message_id, st.error_code) == ("delivered", "+919999000001", "wamid.ABC123", None)
     assert parse(payload) == []
 
 
@@ -27,5 +27,5 @@ def test_failed_receipt_carries_metas_error():
 
 def test_message_payload_has_no_statuses():
     payload = {"object": "whatsapp_business_account", "entry": [{"id": "WABA", "changes": [{"field": "messages", "value": {
-        "messages": [{"from": "917989002661", "id": "wamid.1", "timestamp": "1761120000", "type": "text", "text": {"body": "hi"}}]}}]}]}
+        "messages": [{"from": "919999000001", "id": "wamid.1", "timestamp": "1761120000", "type": "text", "text": {"body": "hi"}}]}}]}]}
     assert statuses(payload) == [] and len(parse(payload)) == 1
